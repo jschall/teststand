@@ -123,7 +123,7 @@ class StandControlFrame(tk.Frame):
         pass
 
     def connect(self):
-        self.mavlink_conn = mavutil.mavserial(self.devicePath, baud=self.deviceBaud)
+        self.mavlink_conn = mavutil.mavserial(self.devicePath, baud=self.deviceBaud, autoreconnect=True)
         self.mavlink_conn.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
         self.mavlink_conn.mav.request_data_stream_send(0, 0, mavutil.mavlink.MAV_DATA_STREAM_ALL, 5, 1)
         self.last_heartbeat_send = time.time()
@@ -151,9 +151,9 @@ class StandControlFrame(tk.Frame):
         if msg.get_type() == 'SYS_STATUS':
             V = msg.voltage_battery*0.001
             I = msg.current_battery*0.01
-            self.telemetryData[2]['value'] = V
-            self.telemetryData[3]['value'] = I
-            self.telemetryData[4]['value'] = V*I
+            self.telemetryData[2]['value'] = "%.2f" % V
+            self.telemetryData[3]['value'] = "%.2f" % I
+            self.telemetryData[4]['value'] = "%.2f" % V*I
             self.updateTelemLabels()
 
 

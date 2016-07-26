@@ -13,6 +13,18 @@ def foreach_children(widget,func):
             foreach_children(child,func)
             func(child)
 
+def configure_normal(widget):
+    try:
+        widget.configure(state=tk.NORMAL)
+    except tk.TclError:
+        pass
+
+def configure_disabled(widget):
+    try:
+        widget.configure(state=tk.DISABLED)
+    except tk.TclError:
+        pass
+
 class StandControlFrame(tk.Frame):
     def __init__(self, parent, name, devicePath, connected):
         tk.Frame.__init__(self, parent, padx=25, pady=25)
@@ -21,22 +33,28 @@ class StandControlFrame(tk.Frame):
         self.devicePath = devicePath
         self.deviceBaud = 57600
 
-        self.headerLabel = tk.Label(self, text=name, font=("Helvetica", 16, "bold"))
-        self.headerLabel.pack()
+        tk.Label(self, text=name, font=("Helvetica", 16, "bold")).grid(row=0, column=0, padx=6, pady=6)
 
-        self.armBtn = tk.Button(self, text='Arm', bg='lightgreen', command=self.armBtnPress)
-        self.startBtn = tk.Button(self, text='Start', bg='lightblue', command=self.startBtnPress)
-        self.disarmBtn = tk.Button(self, text='Disarm', bg='pink', command=self.disarmBtnPress)
-        self.armBtn.pack()
-        self.startBtn.pack()
-        self.disarmBtn.pack()
+
+        self.headerFrame = tk.Frame(self)
+        self.armBtn = tk.Button(self.headerFrame, text='Arm', bg='lightgreen', command=self._armBtnPress)
+        self.startBtn = tk.Button(self.headerFrame, text='Start', bg='lightblue', command=self._startBtnPress)
+        self.disarmBtn = tk.Button(self.headerFrame, text='Disarm', bg='pink', command=self._disarmBtnPress)
+        self.removeBtn = tk.Button(self.headerFrame, text='Remove', command=self._removeBtnPress, padx=0, pady=0)
+        self.armBtn.pack(side=tk.LEFT)
+        self.startBtn.pack(side=tk.LEFT)
+        self.disarmBtn.pack(side=tk.LEFT)
+        self.removeBtn.pack(side=tk.LEFT)
+
+        self.headerFrame.grid(row=0, column=1, sticky=tk.W, padx=6, pady=6)
 
         self.telemetryData = [
             {'name':'Arm', 'value':False},
             {'name':'Thr', 'value':0},
             {'name':'Volt', 'value':0.},
             {'name':'Curr', 'value':0.},
-            {'name':'Pow', 'value':0.}
+            {'name':'Pow', 'value':0.},
+            {'name':'Time', 'value':time.strftime("%H:%M:%S", time.gmtime(0))}
             ]
 
         self.telemFrame = tk.Frame(self)
@@ -49,13 +67,21 @@ class StandControlFrame(tk.Frame):
             self.telemetryLabels[i]['value'] = tk.Label(self.telemFrame, text=str(self.telemetryData[i]['value']))
             self.telemetryLabels[i]['name'].grid(row=i+1, column=0, sticky=tk.W)
             self.telemetryLabels[i]['value'].grid(row=i+1, column=1, sticky=tk.E)
-        self.telemFrame.pack()
 
-        self.removeBtn = tk.Button(self, text='Remove', command=self._removeBtnPress, padx=0, pady=0)
-        self.removeBtn.pack()
+        self.telemFrame.grid(row=1, column=0, padx=6, pady=6)
 
-        self.active = True
-        self.deactivate_controls()
+        self.infoLabel = tk.Text(self, bg='black', fg='white', state=tk.DISABLED, width=64, height=8)
+
+        self.infoLabel.grid(row=1, column=1, padx=6, pady=6)
+
+        self.INIT = 0
+        self.DISCONNECTED = 1
+        self.CONNECTED_DISARMED = 2
+        self.CONNECTED_ARMED = 3
+        self.CONNECTED_RUNNING = 4
+        self.CONNECTED_DISARMING = 5
+
+        self.state = self.INIT
 
         if connected:
             self.connect()
@@ -64,57 +90,70 @@ class StandControlFrame(tk.Frame):
 
         self.after(10, self.tick)
 
-    def activate_controls(self):
-        if self.active:
-            return
-        self.active = True
+    def appendInfoText(self, text):
+        self.infoLabel.config(state=tk.NORMAL)
+        self.infoLabel.insert(tk.END, text+'\n')
+        self.infoLabel.config(state=tk.DISABLED)
+        self.infoLabel.see(tk.END)
 
-        def configure_normal(widget):
-            try:
-                widget.configure(state=tk.NORMAL)
-            except tk.TclError:
-                pass
+    def setState(self, state):
+        assert state in (self.DISCONNECTED, self.CONNECTED_DISARMED, self.CONNECTED_ARMED, self.CONNECTED_RUNNING, self.CONNECTED_DISARMING)
+        if state != self.state:
+            self.state = state
+            self.updateButtonDisableState()
+            self.lastStateChangeTime = time.time()
+            if state == self.DISCONNECTED:
+                self.appendInfoText("State: DISCONNECTED")
+            elif state == self.CONNECTED_DISARMED:
+                self.appendInfoText("State: CONNECTED_DISARMED")
+            elif state == self.CONNECTED_ARMED:
+                self.appendInfoText("State: CONNECTED_ARMED")
+            elif state == self.CONNECTED_RUNNING:
+                self.appendInfoText("State: CONNECTED_RUNNING")
+            elif state == self.CONNECTED_DISARMING:
+                self.appendInfoText("State: CONNECTED_DISARMING")
 
-        foreach_children(self, configure_normal)
-
-    def deactivate_controls(self):
-        if not self.active:
-            return
-        self.active = False
-
-        def configure_disabled(widget):
-            try:
-                widget.configure(state=tk.DISABLED)
-            except tk.TclError:
-                pass
-
-        foreach_children(self, configure_disabled)
-        self.removeBtn.configure(state=tk.NORMAL)
+    def updateButtonDisableState(self):
+        if self.state == self.DISCONNECTED:
+            foreach_children(self, configure_disabled)
+            self.removeBtn.configure(state=tk.NORMAL)
+        elif self.state == self.CONNECTED_DISARMED:
+            foreach_children(self, configure_normal)
+            self.startBtn.configure(state=tk.DISABLED)
+            self.disarmBtn.configure(state=tk.DISABLED)
+        elif self.state == self.CONNECTED_DISARMING:
+            foreach_children(self, configure_normal)
+            self.armBtn.configure(state=tk.DISABLED)
+            self.startBtn.configure(state=tk.DISABLED)
+            self.disarmBtn.configure(state=tk.DISABLED)
+        elif self.state == self.CONNECTED_ARMED:
+            foreach_children(self, configure_normal)
+            self.armBtn.configure(state=tk.DISABLED)
+        elif self.state == self.CONNECTED_RUNNING:
+            foreach_children(self, configure_normal)
+            self.armBtn.configure(state=tk.DISABLED)
+            self.startBtn.configure(state=tk.DISABLED)
 
     def updateTelemLabels(self):
         for i in range(len(self.telemetryData)):
             self.telemetryLabels[i]['name'].config(text=self.telemetryData[i]['name'])
             self.telemetryLabels[i]['value'].config(text=self.telemetryData[i]['value'])
 
-    def armBtnPress(self):
-        print "arming %s!" % (self.name,)
-        if self.mavlink_conn is not None:
-            self.override = [1500,1500,1000,1500,1000,1000,1000,1000]
+    def _armBtnPress(self):
+        if self.state == self.CONNECTED_DISARMED:
             self.mavlink_conn.arducopter_arm()
 
-    def startBtnPress(self):
-        print "starting %s!" % (self.name,)
-        self.override = [1500,1500,1500,1500,1000,1000,1000,1000]
+    def _startBtnPress(self):
+        if self.state != self.DISCONNECTED:
+            self.setState(self.CONNECTED_RUNNING)
 
+    def _disarmBtnPress(self):
+        if self.state != self.DISCONNECTED:
+            self.setState(self.CONNECTED_DISARMING)
 
-    def disarmBtnPress(self):
-        print "disarming %s!" % (self.name,)
-        if self.mavlink_conn is not None:
-            self.override = [1500,1500,1000,1500,1000,1000,1000,1000]
-            self.mavlink_conn.mav.rc_channels_override_send(0, 0, *self.override)
+        if self.state == self.CONNECTED_DISARMING:
+            self.mavlink_conn.mav.rc_channels_override_send(0, 0, *self.getRCOverride())
             self.mavlink_conn.arducopter_disarm()
-            self.disarm_desired = True
-            self.last_rc_override_send = time.time()
 
     def _removeBtnPress(self):
         self.removeBtnPress(self.devicePath)
@@ -122,26 +161,40 @@ class StandControlFrame(tk.Frame):
     def removeBtnPress(self, devicePath):
         pass
 
+    def getRCOverride(self):
+        throttle = 1000
+        if self.state == self.CONNECTED_RUNNING:
+            throttle = min(1500, 1000.+(time.time()-self.lastStateChangeTime)*50.) # 10 second rise
+
+        return [1500,1500,throttle,1500,1000,1000,1000,1000]
+
     def connect(self):
+        self.appendInfoText("Plugged in")
         self.mavlink_conn = mavutil.mavserial(self.devicePath, baud=self.deviceBaud, autoreconnect=True)
         self.mavlink_conn.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
         self.mavlink_conn.mav.request_data_stream_send(0, 0, mavutil.mavlink.MAV_DATA_STREAM_ALL, 5, 1)
         self.last_heartbeat_send = time.time()
         self.last_rc_override_send = time.time()
         self.last_heartbeat_recv = 0
-        self.disarm_desired = False
-        self.override = [1500,1500,1000,1500,1000,1000,1000,1000]
+        self.setState(self.DISCONNECTED)
 
     def disconnect(self):
+        self.appendInfoText("Unplugged")
         self.mavlink_conn = None
+        self.setState(self.DISCONNECTED)
 
     def process_mavlink_message(self, msg):
         if msg.get_type() == 'HEARTBEAT':
             self.last_heartbeat_recv = time.time()
-            self.armed = bool((msg.base_mode & pixhawk.MAV_MODE_FLAG_DECODE_POSITION_SAFETY) == pixhawk.MAV_MODE_FLAG_DECODE_POSITION_SAFETY)
-            if not self.armed:
-                self.disarm_desired = False
-            self.telemetryData[0]['value'] = self.armed
+            armed = bool((msg.base_mode & pixhawk.MAV_MODE_FLAG_DECODE_POSITION_SAFETY) == pixhawk.MAV_MODE_FLAG_DECODE_POSITION_SAFETY)
+
+            if armed and self.state == self.CONNECTED_DISARMED:
+                self.setState(self.CONNECTED_ARMED)
+
+            if not armed and self.state not in (self.DISCONNECTED, self.CONNECTED_DISARMED):
+                self.setState(self.CONNECTED_DISARMED)
+
+            self.telemetryData[0]['value'] = armed
             self.updateTelemLabels()
 
         if msg.get_type() == 'VFR_HUD':
@@ -156,7 +209,8 @@ class StandControlFrame(tk.Frame):
             self.telemetryData[4]['value'] = "%.2f" % V*I
             self.updateTelemLabels()
 
-
+        if msg.get_type() == 'STATUSTEXT':
+            self.appendInfoText(msg.text)
 
     def tick(self):
         self.after(10, self.tick)
@@ -173,22 +227,33 @@ class StandControlFrame(tk.Frame):
                         self.mavlink_conn.mav.heartbeat_send(mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
                         self.mavlink_conn.mav.request_data_stream_send(0, 0, mavutil.mavlink.MAV_DATA_STREAM_ALL, 5, 1)
                         self.last_heartbeat_send = time.time()
-                        #self.mavlink_conn.set_mode(0)
+                        self.mavlink_conn.set_mode(0)
 
                     if time.time()-self.last_rc_override_send >= 0.1:
-                        if self.disarm_desired:
+                        if self.state == self.CONNECTED_DISARMING:
                             self.mavlink_conn.arducopter_disarm()
-                        self.mavlink_conn.mav.rc_channels_override_send(0, 0, *self.override)
+                        override = self.getRCOverride()
+                        self.mavlink_conn.mav.rc_channels_override_send(0, 0, *override)
                         self.last_rc_override_send = time.time()
-
-                if time.time()-self.last_heartbeat_recv > 3.0:
-                    self.deactivate_controls()
-                else:
-                    self.activate_controls()
             except:
                 pass
-        else:
-            self.deactivate_controls()
+
+        haveHeartbeat = (self.mavlink_conn is not None) and (time.time()-self.last_heartbeat_recv < 5.0)
+
+        if haveHeartbeat and self.state == self.DISCONNECTED:
+            self.setState(self.CONNECTED_DISARMED)
+
+        if not haveHeartbeat:
+            self.setState(self.DISCONNECTED)
+
+        if self.state == self.CONNECTED_RUNNING:
+            secsElapsed = time.time()-self.lastStateChangeTime
+            if secsElapsed > 60*60*8:
+                self.appendInfoText("Test complete")
+                self.setState(self.CONNECTED_DISARMING)
+            else:
+                self.telemetryData[5]['value'] = str(time.strftime("%H:%M:%S", time.gmtime(secsElapsed)))
+
 
 
 
@@ -213,22 +278,24 @@ class TestStandMain:
         self.plugMonitor.start()
 
         self.win = tk.Tk()
-        self.standControlsFrame = tk.Frame(padx=25, pady=25,)
-        self.connectLabel = tk.Label(self.standControlsFrame, text='To add a test stand, connect or re-connect its USB cable.', font=("Helvetica", 10, "bold"), wraplength=100)
+        addDeviceFrame = tk.Frame(padx=25, pady=25,)
+        self.connectLabel = tk.Label(addDeviceFrame, text='To add a test stand, connect or re-connect its USB cable.', font=("Helvetica", 10, "bold"), wraplength=200)
         self.connectLabel.pack()
-        self.nameEntry = tk.Entry(self.standControlsFrame, width=11)
+        self.nameEntry = tk.Entry(addDeviceFrame, width=11)
         self.nameEntry.bind('<Return>', lambda event: self.addDevice())
-        self.addDevBtn = tk.Button(self.standControlsFrame, text='Add Device', command=self.addDevice)
-        self.standControlsFrame.pack(side=tk.RIGHT)
+        self.addDevBtn = tk.Button(addDeviceFrame, text='Add Device', command=self.addDevice)
+        addDeviceFrame.pack(side=tk.BOTTOM)
 
         self.standControls = {}
         for deviceConfig in self.config['devices']:
             name = deviceConfig['name']
             devicePath = deviceConfig['path']
             self.standControls[devicePath] = StandControlFrame(self.win, name, devicePath, devicePath in self.devicesConnected)
-            self.standControls[devicePath].pack(side=tk.LEFT)
+            self.standControls[devicePath].pack(side=tk.TOP)
             self.standControls[devicePath].removeBtnPress = self.removeDevice
 
+        self.win.update()
+        self.win.minsize(self.win.winfo_width(), self.win.winfo_height())
         self.win.mainloop()
 
     def addDevice(self):

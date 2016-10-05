@@ -40,10 +40,14 @@ class StandControlFrame(tk.Frame):
         self.armBtn = tk.Button(self.headerFrame, text='Arm', bg='lightgreen', command=self._armBtnPress)
         self.startBtn = tk.Button(self.headerFrame, text='Start', bg='lightblue', command=self._startBtnPress)
         self.disarmBtn = tk.Button(self.headerFrame, text='Disarm', bg='pink', command=self._disarmBtnPress)
+        self.magCalBtn = tk.Button(self.headerFrame, text='Mag Cal', command=self._magCalBtnPress)
+        self.throttleSlider = tk.Scale(self.headerFrame, from_=1000, to=2000, orient=tk.HORIZONTAL, tickinterval=1000., length=200)
         self.removeBtn = tk.Button(self.headerFrame, text='Remove', command=self._removeBtnPress, padx=0, pady=0)
         self.armBtn.pack(side=tk.LEFT)
         self.startBtn.pack(side=tk.LEFT)
         self.disarmBtn.pack(side=tk.LEFT)
+        self.magCalBtn.pack(side=tk.LEFT)
+        self.throttleSlider.pack(side=tk.LEFT)
         self.removeBtn.pack(side=tk.LEFT)
 
         self.headerFrame.grid(row=0, column=1, sticky=tk.W, padx=6, pady=6)
@@ -82,6 +86,8 @@ class StandControlFrame(tk.Frame):
         self.CONNECTED_DISARMING = 5
 
         self.state = self.INIT
+
+        self.throttleSlider.set(1500)
 
         if connected:
             self.connect()
@@ -126,13 +132,17 @@ class StandControlFrame(tk.Frame):
             self.armBtn.configure(state=tk.DISABLED)
             self.startBtn.configure(state=tk.DISABLED)
             self.disarmBtn.configure(state=tk.DISABLED)
+            self.magCalBtn.configure(state=tk.DISABLED)
         elif self.state == self.CONNECTED_ARMED:
             foreach_children(self, configure_normal)
             self.armBtn.configure(state=tk.DISABLED)
+            self.magCalBtn.configure(state=tk.DISABLED)
         elif self.state == self.CONNECTED_RUNNING:
             foreach_children(self, configure_normal)
             self.armBtn.configure(state=tk.DISABLED)
             self.startBtn.configure(state=tk.DISABLED)
+            self.magCalBtn.configure(state=tk.DISABLED)
+        self.throttleSlider.configure(state=tk.NORMAL)
 
     def updateTelemLabels(self):
         for i in range(len(self.telemetryData)):
@@ -155,6 +165,10 @@ class StandControlFrame(tk.Frame):
             self.mavlink_conn.mav.rc_channels_override_send(0, 0, *self.getRCOverride())
             self.mavlink_conn.arducopter_disarm()
 
+    def _magCalBtnPress(self):
+        if self.state == self.CONNECTED_DISARMED:
+            self.mavlink_conn.mav.command_long_send(0, 0, 42424, 0, 0, 1, 1, 5, 1, 0, 0)
+
     def _removeBtnPress(self):
         self.removeBtnPress(self.devicePath)
 
@@ -164,7 +178,8 @@ class StandControlFrame(tk.Frame):
     def getRCOverride(self):
         throttle = 1000
         if self.state == self.CONNECTED_RUNNING:
-            throttle = min(1500, 1000.+(time.time()-self.lastStateChangeTime)*50.) # 10 second rise
+            rampPct = (time.time()-self.lastStateChangeTime)/10. # 10 second ramp
+            throttle = min(1500, 1000.+rampPct*(self.throttleSlider.get()-1000.))
 
         return [1500,1500,throttle,1500,1000,1000,1000,1000]
 

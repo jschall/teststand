@@ -41,12 +41,14 @@ class StandControlFrame(tk.Frame):
         self.startBtn = tk.Button(self.headerFrame, text='Start', bg='lightblue', command=self._startBtnPress)
         self.disarmBtn = tk.Button(self.headerFrame, text='Disarm', bg='pink', command=self._disarmBtnPress)
         self.magCalBtn = tk.Button(self.headerFrame, text='Mag Cal', command=self._magCalBtnPress)
+        self.throttleSliderLabel = tk.Label(self.headerFrame, text='Thr')
         self.throttleSlider = tk.Scale(self.headerFrame, from_=1000, to=2000, orient=tk.HORIZONTAL, tickinterval=1000., length=200)
         self.removeBtn = tk.Button(self.headerFrame, text='Remove', command=self._removeBtnPress, padx=0, pady=0)
         self.armBtn.pack(side=tk.LEFT)
         self.startBtn.pack(side=tk.LEFT)
         self.disarmBtn.pack(side=tk.LEFT)
         self.magCalBtn.pack(side=tk.LEFT)
+        self.throttleSliderLabel.pack(side=tk.LEFT)
         self.throttleSlider.pack(side=tk.LEFT)
         self.removeBtn.pack(side=tk.LEFT)
 
@@ -142,6 +144,7 @@ class StandControlFrame(tk.Frame):
             self.armBtn.configure(state=tk.DISABLED)
             self.startBtn.configure(state=tk.DISABLED)
             self.magCalBtn.configure(state=tk.DISABLED)
+        self.throttleSliderLabel.configure(state=tk.NORMAL)
         self.throttleSlider.configure(state=tk.NORMAL)
 
     def updateTelemLabels(self):
@@ -263,7 +266,7 @@ class StandControlFrame(tk.Frame):
 
         if self.state == self.CONNECTED_RUNNING:
             secsElapsed = time.time()-self.lastStateChangeTime
-            if secsElapsed > 60*60*8:
+            if False:#secsElapsed > 60*60*8:
                 self.appendInfoText("Test complete")
                 self.setState(self.CONNECTED_DISARMING)
             else:

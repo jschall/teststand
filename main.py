@@ -181,7 +181,7 @@ class StandControlFrame(tk.Frame):
     def getRCOverride(self):
         throttle = 1000
         if self.state == self.CONNECTED_RUNNING:
-            rampPct = min(max((time.time()-self.lastStateChangeTime)/10.), 0., 1.) # 10 second ramp
+            rampPct = min(max((time.time()-self.lastStateChangeTime)/10., 0.), 1.) # 10 second ramp
             throttle = 1000.+rampPct*(self.throttleSlider.get()-1000.)
 
         return [1500,1500,throttle,1500,1000,1000,1000,1000]

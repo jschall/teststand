@@ -6,7 +6,7 @@ from watchdog.observers import Observer as FileAlterationMonitor
 from watchdog.events import FileSystemEventHandler, PatternMatchingEventHandler
 import json
 from pymavlink import mavutil
-from pymavlink.dialects.v10 import pixhawk
+from pymavlink.dialects.v10 import ardupilotmega
 
 def foreach_children(widget,func):
         for child in widget.winfo_children():
@@ -204,7 +204,7 @@ class StandControlFrame(tk.Frame):
     def process_mavlink_message(self, msg):
         if msg.get_type() == 'HEARTBEAT':
             self.last_heartbeat_recv = time.time()
-            armed = bool((msg.base_mode & pixhawk.MAV_MODE_FLAG_DECODE_POSITION_SAFETY) == pixhawk.MAV_MODE_FLAG_DECODE_POSITION_SAFETY)
+            armed = bool((msg.base_mode & ardupilotmega.MAV_MODE_FLAG_DECODE_POSITION_SAFETY) == ardupilotmega.MAV_MODE_FLAG_DECODE_POSITION_SAFETY)
 
             if armed and self.state == self.CONNECTED_DISARMED:
                 self.setState(self.CONNECTED_ARMED)

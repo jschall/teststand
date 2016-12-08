@@ -27,7 +27,7 @@ def configure_disabled(widget):
 
 class StandControlFrame(tk.Frame):
     def __init__(self, parent, name, devicePath, connected):
-        tk.Frame.__init__(self, parent, padx=25, pady=25)
+        tk.Frame.__init__(self, parent, padx=20, pady=20)
 
         self.name = name
         self.devicePath = devicePath
@@ -296,7 +296,7 @@ class TestStandMain:
         self.plugMonitor.start()
 
         self.win = tk.Tk()
-        addDeviceFrame = tk.Frame(padx=25, pady=25,)
+        addDeviceFrame = tk.Frame(padx=20, pady=20,)
         self.connectLabel = tk.Label(addDeviceFrame, text='To add a test stand, connect or re-connect its USB cable.', font=("Helvetica", 10, "bold"), wraplength=200)
         self.connectLabel.pack()
         self.nameEntry = tk.Entry(addDeviceFrame, width=11)
@@ -304,17 +304,35 @@ class TestStandMain:
         self.addDevBtn = tk.Button(addDeviceFrame, text='Add Device', command=self.addDevice)
         addDeviceFrame.pack(side=tk.BOTTOM)
 
-        self.standControls = {}
+        self.controlsFrame = tk.Frame(self.win)
+        self.standControls = []
         for deviceConfig in self.config['devices']:
             name = deviceConfig['name']
             devicePath = deviceConfig['path']
-            self.standControls[devicePath] = StandControlFrame(self.win, name, devicePath, devicePath in self.devicesConnected)
-            self.standControls[devicePath].pack(side=tk.TOP)
-            self.standControls[devicePath].removeBtnPress = self.removeDevice
+            self.standControls.append(StandControlFrame(self.controlsFrame, name, devicePath, devicePath in self.devicesConnected))
+            self.standControls[-1].removeBtnPress = self.removeDevice
 
+        self.arrangeStandControls()
+        self.controlsFrame.pack()
         self.win.update()
         self.win.minsize(self.win.winfo_width(), self.win.winfo_height())
         self.win.mainloop()
+
+    def getStandControlIndex(self, devicePath):
+        for i in range(len(self.standControls)):
+            if self.standControls[i].devicePath == devicePath:
+                return i
+        return None
+
+    def getStandControl(self, devicePath):
+        i = self.getStandControlIndex(devicePath)
+        return self.standControls[i] if i is not None else None
+
+    def arrangeStandControls(self):
+        for i in range(len(self.standControls)):
+            self.standControls[i].grid_forget()
+        for i in range(len(self.standControls)):
+            self.standControls[i].grid(row=i/2,column=i%2)
 
     def addDevice(self):
         name = self.nameEntry.get()
@@ -329,9 +347,9 @@ class TestStandMain:
 
         self.config['devices'].append({'name': name, 'path':devicePath})
         self.writeConfigFile()
-        self.standControls[devicePath] = StandControlFrame(self.win, name, devicePath, True)
-        self.standControls[devicePath].pack(side=tk.LEFT)
-        self.standControls[devicePath].removeBtnPress = self.removeDevice
+        self.standControls.append(StandControlFrame(self.controlsFrame, name, devicePath, True))
+        self.standControls[-1].removeBtnPress = self.removeDevice
+        self.arrangeStandControls()
 
     def removeDevice(self, devicePath):
         if devicePath not in [dev['path'] for dev in self.config['devices']]:
@@ -342,9 +360,12 @@ class TestStandMain:
         del self.config['devices'][idx]
         self.writeConfigFile()
 
-        self.standControls[devicePath].pack_forget()
-        self.standControls[devicePath].destroy()
-        del self.standControls[devicePath]
+        idx = self.getStandControlIndex(devicePath)
+
+        self.standControls[idx].grid_forget()
+        self.standControls[idx].destroy()
+        self.standControls.pop(idx)
+        self.arrangeStandControls()
 
     def cancelAddDevice(self):
         if self.deviceConnectAfterId is not None:
@@ -364,7 +385,7 @@ class TestStandMain:
 
         devicePath = addedDevices.pop()
         if devicePath in [dev['path'] for dev in self.config['devices']]:
-            self.standControls[devicePath].connect()
+            self.getStandControl(devicePath).connect()
         else:
             print "New device detected: %s" % (devicePath,)
             if self.deviceConnectAfterId is not None:
@@ -384,7 +405,7 @@ class TestStandMain:
 
         for devicePath in removedDevices:
             if devicePath in [dev['path'] for dev in self.config['devices']]:
-                self.standControls[devicePath].disconnect()
+                self.getStandControl(devicePath).disconnect()
 
     def devicesChanged(self):
         nextDevicesConnected = set(glob.glob(os.path.join(self.devicesPath,'*')))

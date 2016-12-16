@@ -8,6 +8,8 @@ import json
 from pymavlink import mavutil
 from pymavlink.dialects.v10 import ardupilotmega
 
+TEST_END_VOLTAGE = 41.0
+
 def foreach_children(widget,func):
         for child in widget.winfo_children():
             foreach_children(child,func)
@@ -226,6 +228,10 @@ class StandControlFrame(tk.Frame):
             self.telemetryData[3]['value'] = "%.2f" % I
             self.telemetryData[4]['value'] = "%.2f" % V*I
             self.updateTelemLabels()
+
+            if self.state == self.CONNECTED_RUNNING and V <= TEST_END_VOLTAGE:
+                self.appendInfoText("Test complete - voltage < %f" % (TEST_END_VOLTAGE,))
+                self.setState(self.CONNECTED_DISARMING)
 
         if msg.get_type() == 'STATUSTEXT':
             self.appendInfoText(msg.text)

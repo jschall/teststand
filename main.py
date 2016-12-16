@@ -253,7 +253,7 @@ class StandControlFrame(tk.Frame):
                         self.last_heartbeat_send = time.time()
                         self.mavlink_conn.set_mode(0)
 
-                    if time.time()-self.last_rc_override_send >= 0.1:
+                    if time.time()-self.last_rc_override_send >= 0.05:
                         if self.state == self.CONNECTED_DISARMING:
                             self.mavlink_conn.arducopter_disarm()
                         override = self.getRCOverride()
@@ -262,7 +262,7 @@ class StandControlFrame(tk.Frame):
             except:
                 pass
 
-        haveHeartbeat = (self.mavlink_conn is not None) and (time.time()-self.last_heartbeat_recv < 5.0)
+        haveHeartbeat = (self.mavlink_conn is not None) and (time.time()-self.last_heartbeat_recv < 10.0)
 
         if haveHeartbeat and self.state == self.DISCONNECTED:
             self.setState(self.CONNECTED_DISARMED)

@@ -205,6 +205,8 @@ class StandControlFrame(tk.Frame):
 
     def process_mavlink_message(self, msg):
         if msg.get_type() == 'HEARTBEAT':
+            if msg.type != 2:
+                return
             self.last_heartbeat_recv = time.time()
             armed = bool((msg.base_mode & ardupilotmega.MAV_MODE_FLAG_DECODE_POSITION_SAFETY) == ardupilotmega.MAV_MODE_FLAG_DECODE_POSITION_SAFETY)
 
